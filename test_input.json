@@ -1,0 +1,11 @@
+{
+  "searchQueries": ["tshirts"],
+  "categoryPaths": [],
+  "maxResults": 10,
+  "sortBy": "recommended",
+  "proxyConfiguration": {
+    "useApifyProxy": true,
+    "apifyProxyGroups": ["RESIDENTIAL"],
+    "apifyProxyCountry": "IN"
+  }
+}

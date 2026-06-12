@@ -1,0 +1,53 @@
+{
+  "title": "Myntra Fashion Product Scraper",
+  "description": "Scrape public Myntra search and category pages for product catalog, price, discount, rating, image, and URL data.",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "searchQueries": {
+      "title": "Search Queries",
+      "description": "Fashion product searches such as tshirts, jeans, sneakers, sarees, or kurtas.",
+      "type": "array",
+      "editor": "stringList",
+      "default": ["tshirts"],
+      "prefill": ["tshirts"]
+    },
+    "categoryPaths": {
+      "title": "Category Paths",
+      "description": "Optional Myntra category paths or URLs, for example men-tshirts or https://www.myntra.com/women-kurtas-kurtis-suits.",
+      "type": "array",
+      "editor": "stringList",
+      "default": [],
+      "prefill": []
+    },
+    "maxResults": {
+      "title": "Max Results",
+      "description": "Maximum products to save across all searches and category paths.",
+      "type": "integer",
+      "editor": "number",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 500
+    },
+    "sortBy": {
+      "title": "Sort By",
+      "description": "Optional Myntra sort parameter.",
+      "type": "string",
+      "editor": "select",
+      "default": "recommended",
+      "enum": ["recommended", "popularity", "price_asc", "price_desc", "new", "discount", "rating"],
+      "enumTitles": ["Recommended", "Popularity", "Price: Low to High", "Price: High to Low", "New", "Discount", "Customer Rating"]
+    },
+    "proxyConfiguration": {
+      "title": "Proxy Configuration",
+      "description": "Proxy settings. Myntra can hide product data from datacenter traffic, so residential India proxy is enabled by default for reliable cloud runs.",
+      "type": "object",
+      "editor": "proxy",
+      "default": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"],
+        "apifyProxyCountry": "IN"
+      }
+    }
+  }
+}

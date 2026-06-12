@@ -1,0 +1,23 @@
+{
+  "name": "myntra-fashion-products-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Apify Actor for scraping public Myntra fashion product search and category data.",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts"
+  },
+  "keywords": ["apify", "myntra", "fashion", "ecommerce", "products", "scraper"],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "apify": "^3.2.0",
+    "undici": "^6.19.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
