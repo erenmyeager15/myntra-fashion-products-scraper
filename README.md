@@ -1,18 +1,54 @@
-# Myntra Fashion Products Scraper
+# Myntra Scraper - Fashion Products, Prices & Discounts
 
-Scrape public Myntra fashion search and category pages into a clean product dataset. The Actor collects brand, product title, price, MRP, discount amount, discount percentage, rating, rating count, sizes, gender, category, color, product image, and product URL.
+Scrape public Myntra fashion search and category pages and export clean data to JSON, CSV, Excel, XML, or RSS from the Apify Dataset — no login and no API key required. This Myntra scraper extracts brand, product title, price, MRP, discount, rating, reviews, sizes, gender, color, image, and product URL for any search term or category.
 
-The Actor reads Myntra's public server-rendered listing payload. It does not require login and does not extract private customer, seller, or contact data. Direct Myntra gateway APIs are gated, so this Actor uses the public product data embedded in listing pages. Myntra can hide product data from datacenter cloud traffic, so residential India proxy is enabled by default.
+Built with Node.js 20, TypeScript, and the Apify SDK. It reads the public product data embedded in Myntra's server-rendered listing pages over lightweight HTTP requests through Apify residential proxies (India), with retries and resilient extraction so cloud runs stay reliable. It does not require login and does not collect private customer, seller, or contact data.
+
+## What It Extracts
+
+- Brand and product title
+- Myntra product ID
+- Current price (number and display text)
+- MRP and discount amount
+- Discount percentage and discount label
+- Star rating and rating count
+- Available sizes
+- Gender, category, and primary color
+- Product image URL
+- Result position, search query, and category path
+- Product URL and scrape timestamp
+
+## Use Cases
+
+1. Fashion catalog and assortment monitoring across brands and categories.
+2. E-commerce price and discount tracking on Myntra listings.
+3. Brand and competitor research for sizing, colors, and pricing.
+4. Discount and rating analysis to surface the best fashion deals.
+5. Marketplace trend reports and dashboards over time.
+
+## Pricing
+
+This Actor uses Apify Pay Per Event pricing. You pay only for clean records delivered to the dataset — failed, blocked, or empty results are not billed.
+
+| Event name | Price per event | 1,000 results | 10,000 results |
+| --- | ---: | ---: | ---: |
+| `product-scraped` | $0.002 | $2.00 | $20.00 |
+
+Apify platform usage (compute and proxy) is billed separately.
 
 ## Input
 
-| Field | Description | Default |
-|---|---|---|
-| `searchQueries` | Fashion searches such as tshirts, jeans, sneakers, sarees | `["tshirts"]` |
-| `categoryPaths` | Optional category paths or full Myntra category URLs | `[]` |
-| `maxResults` | Maximum products saved across all targets | `10` |
-| `sortBy` | Recommended, popularity, price, new, discount, rating | `recommended` |
-| `proxyConfiguration` | Apify proxy settings | Residential, India |
+| Field | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `searchQueries` | array | yes* | `["tshirts"]` | Fashion searches such as tshirts, jeans, sneakers, sarees, or kurtas. |
+| `categoryPaths` | array | no | `[]` | Optional Myntra category paths or URLs, e.g. `men-tshirts`. |
+| `maxResults` | integer | no | `10` | Maximum products saved across all targets. |
+| `sortBy` | string | no | `recommended` | Sort order: recommended, popularity, price, new, discount, or rating. |
+| `proxyConfiguration` | object | no | Residential, IN | Apify proxy settings. Residential India recommended. |
+
+\* Provide at least one `searchQueries` entry or one `categoryPaths` entry.
+
+## Example Input
 
 ```json
 {
@@ -28,7 +64,7 @@ The Actor reads Myntra's public server-rendered listing payload. It does not req
 }
 ```
 
-## Output
+## Sample Output
 
 ```json
 {
@@ -36,49 +72,61 @@ The Actor reads Myntra's public server-rendered listing payload. It does not req
   "searchQuery": "tshirts",
   "categoryPath": null,
   "position": 1,
-  "productId": 42692474,
-  "brand": "KASSUALLY",
-  "title": "KASSUALLY Janata GenZ Oversized Graphic Cotton T-Shirt",
-  "additionalInfo": "Unisex Printed T-shirt",
-  "gender": "Unisex",
+  "productId": 42867022,
+  "brand": "UMILDO",
+  "title": "UMILDO Boys Brand Logo Los Angeles Lakers Printed Dri-FIT T-shirt",
+  "additionalInfo": "NBA Basketball Tank Top",
+  "gender": "Boys",
   "category": "Tshirts",
-  "primaryColour": "Grey",
-  "price": 589,
-  "priceDisplay": "INR 589",
+  "primaryColour": "Yellow",
+  "price": 640,
+  "priceDisplay": "INR 640",
   "mrp": 1299,
   "mrpDisplay": "INR 1,299",
-  "discountAmount": 710,
-  "discountPercent": 55,
-  "discountDisplayLabel": "(55% OFF)",
+  "discountAmount": 659,
+  "discountPercent": 51,
+  "discountDisplayLabel": "(51% OFF)",
   "rating": 0,
   "ratingCount": 0,
-  "sizes": ["S", "M", "L", "XL", "XXL"],
-  "imageUrl": "https://assets.myntassets.com/assets/images/...",
-  "productUrl": "https://www.myntra.com/tshirts/kassually/.../42692474/buy",
-  "scrapedAt": "2026-06-13T00:30:00.000Z"
+  "sizes": ["4-6Y", "6-8Y", "8-10Y", "10-12Y", "12-14Y"],
+  "imageUrl": "https://assets.myntassets.com/assets/images/2026/JUNE/6/crI0Zovt_715f76dee3524abab99b218a3ff3ddbc.jpg",
+  "productUrl": "https://www.myntra.com/tshirts/umildo/umildo-boys-brand-logo-los-angeles-lakers-printed-dri-fit-t-shirt/42867022/buy",
+  "scrapedAt": "2026-06-12T19:56:55.975Z"
 }
 ```
 
-## Use Cases
+## How It Works
 
-- Fashion catalog monitoring
-- E-commerce price tracking
-- Brand assortment research
-- Discount and rating analysis
-- Marketplace trend reports
+1. Validates the search queries and category paths and builds Myntra listing URLs (with optional sort).
+2. Fetches server-rendered pages through Apify residential proxies, retrying on 401/403/429/529 blocks.
+3. Reads the embedded `window.__myx` product payload and cleans brand, price, MRP, discount, sizes, and rating fields.
+4. Deduplicates by product ID across pages and targets.
+5. Charges `product-scraped` only after a clean record is saved, then writes to the Apify Dataset.
 
-## Pricing
+## How to Scrape Myntra (Step by Step)
 
-| Event | Price |
-|---|---|
-| `product-scraped` | $0.002 per saved product |
+1. Click **Try for free** / **Run**.
+2. Enter one or more search terms in `searchQueries` (for example, `tshirts` or `sneakers`), or add a `categoryPaths` entry such as `men-tshirts`.
+3. Set `maxResults` (start small to test) and pick a `sortBy` order.
+4. Keep residential India proxy enabled for reliable results.
+5. Run, then export results as CSV, JSON, or Excel, or pull them via the Apify API.
 
-The Actor charges only after a clean product record is saved. Apify platform usage is billed separately.
+## Reliability & Anti-Bot Handling
 
-## Notes
+- Apify residential proxy support, pinned to India by default.
+- Retries on transient failures and 401/403/429/529 responses.
+- Field-level fallback to `null` when optional data is unavailable.
+- Charges only for clean, saved records — never for blocked or empty pages.
 
-Myntra page structure can change. If a cloud run returns no rows, keep residential proxy enabled, retry with a smaller `maxResults`, or test a category path such as `men-tshirts`.
+## Known Limits
+
+- Myntra's embedded listing payload can change; if a run returns no rows, keep residential proxy enabled, lower `maxResults`, or try a category path such as `men-tshirts`.
+- Rating and rating count are `0` for products that have not yet been rated on Myntra.
+
+## Legal and Ethical Use
+
+Use this Actor for legitimate research, price monitoring, and analysis. You are responsible for complying with Myntra's terms, privacy laws, and local regulations wherever you use the data.
 
 ## License
 
-Apache-2.0
+Apache-2.0. See `LICENSE`.
