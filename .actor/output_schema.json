@@ -1,0 +1,14 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Myntra Fashion Products Scraper Output",
+  "description": "Structured Myntra fashion product records with brands, product names, prices, MRP, discounts, ratings, sizes, categories, product URLs, image URLs, and scraped timestamps.",
+  "type": "object",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "Myntra product records",
+      "description": "Clean dataset items containing Myntra fashion catalog and price data.",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}
