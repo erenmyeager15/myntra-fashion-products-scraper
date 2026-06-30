@@ -5,55 +5,35 @@
   "description": "Scrape public Myntra fashion product search/category results with titles, brands, prices, MRP, discounts, ratings, sizes, categories, image URLs, and product URLs.",
   "version": "1.0",
   "categories": ["ECOMMERCE", "OTHER"],
+  "categoriesVersion": "1.0.0",
   "dockerfile": "Dockerfile",
   "input": "../INPUT_SCHEMA.json",
   "readme": "../README.md",
   "output": "./output_schema.json",
   "storages": {
-    "dataset": {
-      "actorSpecification": 1,
-      "views": {
-        "products": {
-          "title": "Products",
-          "transformation": {
-            "fields": ["source", "searchQuery", "position", "productId", "title", "brand", "price", "mrp", "discountPercent", "currency", "packSize", "category", "rating", "ratingCount", "inStock", "productUrl", "imageUrl", "scrapedAt"]
-          },
-          "display": {
-            "component": "table",
-            "properties": {
-              "source": { "label": "Source", "format": "text" },
-              "searchQuery": { "label": "Search", "format": "text" },
-              "position": { "label": "Position", "format": "number" },
-              "productId": { "label": "Product ID", "format": "text" },
-              "title": { "label": "Product", "format": "text" },
-              "brand": { "label": "Brand", "format": "text" },
-              "price": { "label": "Price", "format": "number" },
-              "mrp": { "label": "MRP", "format": "number" },
-              "discountPercent": { "label": "Discount %", "format": "number" },
-              "currency": { "label": "Currency", "format": "text" },
-              "packSize": { "label": "Pack Size", "format": "text" },
-              "category": { "label": "Category", "format": "text" },
-              "rating": { "label": "Rating", "format": "number" },
-              "ratingCount": { "label": "Ratings", "format": "number" },
-              "inStock": { "label": "In Stock", "format": "boolean" },
-              "productUrl": { "label": "URL", "format": "link" },
-              "imageUrl": { "label": "Image", "format": "image" },
-              "scrapedAt": { "label": "Scraped At", "format": "date" }
-            }
-          }
-        }
-      }
-    }
+    "dataset": "./dataset_schema.json"
+  },
+  "exampleRunInput": {
+    "body": "{\"searchQueries\":[\"tshirts\"],\"categoryPaths\":[],\"maxResults\":1,\"sortBy\":\"recommended\",\"proxyConfiguration\":{\"useApifyProxy\":true,\"apifyProxyGroups\":[\"RESIDENTIAL\"],\"apifyProxyCountry\":\"IN\"}}",
+    "contentType": "application/json; charset=utf-8"
   },
   "pricingInfo": {
     "pricingModel": "PAY_PER_EVENT",
-    "reasonForChange": "Initial pay-per-event pricing for clean Myntra fashion product records.",
     "pricingPerEvent": {
       "actorChargeEvents": {
+        "apify-actor-start": {
+          "eventTitle": "Actor Start",
+          "eventDescription": "Charged when the Actor starts running. Number of events charged depends on Actor memory (one event per GB, minimum one event).",
+          "eventPriceUsd": 0.00005,
+          "isPrimaryEvent": false,
+          "isOneTimeEvent": true
+        },
         "product-scraped": {
           "eventTitle": "Product scraped",
           "eventDescription": "Charged once for each clean Myntra product record saved to the dataset.",
-          "eventPriceUsd": 0.002
+          "eventPriceUsd": 0.002,
+          "isPrimaryEvent": true,
+          "isOneTimeEvent": false
         }
       }
     }

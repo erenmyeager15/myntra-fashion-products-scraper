@@ -13,18 +13,16 @@ const numberOrNull = (value: unknown): number | null => {
     return value;
 };
 
+const textOrNA = (value: unknown): string => cleanString(value) ?? 'N/A';
+
 const httpsUrl = (value: string | null | undefined): string | null => {
     const cleaned = cleanString(value);
     if (!cleaned) return null;
+    if (cleaned.toLowerCase() === 'proxied content') return null;
     if (cleaned.startsWith('//')) return `https:${cleaned}`;
     if (cleaned.startsWith('http://')) return `https://${cleaned.slice('http://'.length)}`;
     if (cleaned.startsWith('https://')) return cleaned;
     return `${MYNTRA_ORIGIN}/${cleaned.replace(/^\/+/, '')}`;
-};
-
-const moneyDisplay = (value: number | null): string | null => {
-    if (value === null) return null;
-    return `INR ${value.toLocaleString('en-IN')}`;
 };
 
 const discountPercentFromLabel = (label: string | null): number | null => {
@@ -37,6 +35,19 @@ const splitSizes = (value: string | null | undefined): string[] => {
     const cleaned = cleanString(value);
     if (!cleaned) return [];
     return cleaned.split(',').map((size) => size.trim()).filter(Boolean);
+};
+
+const packSizeFromProduct = (product: MyntraProduct): string => {
+    const sizes = splitSizes(product.sizes);
+    return sizes.length > 0 ? sizes.join(', ') : 'N/A';
+};
+
+const stockFromProduct = (product: MyntraProduct): boolean | null => {
+    const availability = product.inventoryInfo
+        ?.map((item) => item.available)
+        .filter((value): value is boolean => typeof value === 'boolean');
+    if (!availability || availability.length === 0) return null;
+    return availability.some(Boolean);
 };
 
 const bestImage = (product: MyntraProduct): string | null => {
@@ -83,37 +94,29 @@ export function toRecord(product: MyntraProduct, searchQuery: string | null, cat
 
     const price = numberOrNull(product.price);
     const mrp = numberOrNull(product.mrp);
-    const discountAmount = mrp !== null && price !== null && mrp > price
-        ? mrp - price
-        : numberOrNull(product.discount);
     const discountPercent = mrp !== null && price !== null && mrp > price
         ? Math.round(((mrp - price) / mrp) * 100)
         : discountPercentFromLabel(cleanString(product.discountDisplayLabel));
+    const productId = numberOrNull(product.productId);
 
     return {
         source: 'myntra',
-        searchQuery,
-        categoryPath,
+        searchQuery: cleanString(searchQuery) ?? cleanString(categoryPath) ?? 'N/A',
         position,
-        productId: numberOrNull(product.productId),
-        brand: cleanString(product.brand),
+        productId: productId !== null ? String(productId) : null,
         title,
-        additionalInfo: cleanString(product.additionalInfo),
-        gender: cleanString(product.gender),
-        category: cleanString(product.category),
-        primaryColour: cleanString(product.primaryColour),
+        brand: textOrNA(product.brand),
         price,
-        priceDisplay: moneyDisplay(price),
         mrp,
-        mrpDisplay: moneyDisplay(mrp),
-        discountAmount,
         discountPercent,
-        discountDisplayLabel: cleanString(product.discountDisplayLabel),
+        currency: 'INR',
+        packSize: packSizeFromProduct(product),
+        category: textOrNA(product.category),
         rating: numberOrNull(product.rating),
         ratingCount: numberOrNull(product.ratingCount),
-        sizes: splitSizes(product.sizes),
-        imageUrl: bestImage(product),
+        inStock: stockFromProduct(product),
         productUrl: url,
+        imageUrl: bestImage(product),
         scrapedAt: new Date().toISOString(),
     };
 }

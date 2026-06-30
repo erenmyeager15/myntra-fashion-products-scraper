@@ -1,14 +1,24 @@
+export type SortBy = 'recommended' | 'popularity' | 'price_asc' | 'price_desc' | 'new' | 'discount' | 'rating';
+
 export interface ActorInput {
     searchQueries?: string[];
     categoryPaths?: string[];
     maxResults?: number;
-    sortBy?: 'recommended' | 'popularity' | 'price_asc' | 'price_desc' | 'new' | 'discount' | 'rating';
+    sortBy?: SortBy;
     proxyConfiguration?: {
         useApifyProxy?: boolean;
         apifyProxyGroups?: string[];
         apifyProxyCountry?: string;
         proxyUrls?: string[];
     };
+}
+
+export interface NormalizedInput {
+    searchQueries: string[];
+    categoryPaths: string[];
+    maxResults: number;
+    sortBy: SortBy;
+    proxyConfiguration?: ActorInput['proxyConfiguration'];
 }
 
 export interface MyntraProduct {
@@ -35,27 +45,21 @@ export interface MyntraProduct {
 
 export interface ProductRecord {
     source: 'myntra';
-    searchQuery: string | null;
-    categoryPath: string | null;
+    searchQuery: string;
     position: number;
-    productId: number | null;
-    brand: string | null;
-    title: string | null;
-    additionalInfo: string | null;
-    gender: string | null;
-    category: string | null;
-    primaryColour: string | null;
+    productId: string | null;
+    title: string;
+    brand: string;
     price: number | null;
-    priceDisplay: string | null;
     mrp: number | null;
-    mrpDisplay: string | null;
-    discountAmount: number | null;
     discountPercent: number | null;
-    discountDisplayLabel: string | null;
+    currency: string;
+    packSize: string;
+    category: string;
     rating: number | null;
     ratingCount: number | null;
-    sizes: string[];
-    imageUrl: string | null;
+    inStock: boolean | null;
     productUrl: string | null;
+    imageUrl: string | null;
     scrapedAt: string;
 }

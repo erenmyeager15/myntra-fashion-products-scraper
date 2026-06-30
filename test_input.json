@@ -1,7 +1,7 @@
 {
   "searchQueries": ["tshirts"],
   "categoryPaths": [],
-  "maxResults": 10,
+  "maxResults": 1,
   "sortBy": "recommended",
   "proxyConfiguration": {
     "useApifyProxy": true,

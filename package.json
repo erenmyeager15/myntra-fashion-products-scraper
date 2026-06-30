@@ -6,7 +6,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
-    "dev": "tsx src/main.ts"
+    "dev": "tsx src/main.ts",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test dist/billing.test.js dist/input.test.js dist/routes.test.js"
   },
   "keywords": ["apify", "myntra", "fashion", "ecommerce", "products", "scraper"],
   "license": "Apache-2.0",

@@ -1,6 +1,6 @@
 {
   "title": "Myntra Fashion Product Scraper",
-  "description": "Scrape public Myntra search and category pages for product catalog, price, discount, rating, image, and URL data.",
+  "description": "Low-cost sample: scrape 1 public Myntra T-shirt product with Residential India proxy. Increase max results only after the sample output looks right.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
@@ -10,7 +10,8 @@
       "type": "array",
       "editor": "stringList",
       "default": ["tshirts"],
-      "prefill": ["tshirts"]
+      "prefill": ["tshirts"],
+      "maxItems": 5
     },
     "categoryPaths": {
       "title": "Category Paths",
@@ -18,14 +19,15 @@
       "type": "array",
       "editor": "stringList",
       "default": [],
-      "prefill": []
+      "prefill": [],
+      "maxItems": 5
     },
     "maxResults": {
       "title": "Max Results",
-      "description": "Maximum products to save across all searches and category paths.",
+      "description": "Maximum products to save across all searches and category paths. Start with 1 for a low-cost test.",
       "type": "integer",
       "editor": "number",
-      "default": 10,
+      "default": 1,
       "minimum": 1,
       "maximum": 500
     },
@@ -40,7 +42,7 @@
     },
     "proxyConfiguration": {
       "title": "Proxy Configuration",
-      "description": "Proxy settings. Myntra can hide product data from datacenter traffic, so residential India proxy is enabled by default for reliable cloud runs.",
+      "description": "Proxy settings. Myntra can hide product data from datacenter traffic, so Residential India proxy is enabled by default for reliable cloud runs.",
       "type": "object",
       "editor": "proxy",
       "default": {
