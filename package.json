@@ -9,7 +9,7 @@
     "dev": "tsx src/main.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/billing.test.js dist/input.test.js dist/routes.test.js"
+    "test": "npm run build && node --test dist/billing.test.js dist/contracts.test.js dist/input.test.js dist/outcome.test.js dist/routes.test.js"
   },
   "keywords": ["apify", "myntra", "fashion", "ecommerce", "products", "scraper"],
   "license": "Apache-2.0",

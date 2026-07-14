@@ -3,7 +3,18 @@ import { ProxyAgent } from 'undici';
 import type { ProductRecord } from './types.js';
 import { wasPushedRecordSaved } from './billing.js';
 import { buildCategoryUrl, buildSearchUrl, normalizeCategoryPath, normalizeInput } from './input.js';
-import { extractMyxData, productsFromMyx, toRecord } from './routes.js';
+import { classifyRunOutcome } from './outcome.js';
+import { classifyMyxPayload, extractMyxData, toRecord } from './routes.js';
+
+interface FetchHtmlResult {
+    html: string | null;
+    error?: string;
+}
+
+interface TargetResult {
+    parsed: boolean;
+    failure?: string;
+}
 
 await Actor.init();
 
@@ -29,7 +40,8 @@ try {
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     };
 
-    async function fetchHtml(url: string): Promise<string | null> {
+    async function fetchHtml(url: string): Promise<FetchHtmlResult> {
+        let lastError = `Request failed for ${url}`;
         for (let attempt = 0; attempt < 4; attempt++) {
             let dispatcher: ProxyAgent | undefined;
             if (proxyConfiguration) {
@@ -38,27 +50,49 @@ try {
             }
 
             try {
-                const res = await fetch(url, { headers, ...(dispatcher ? { dispatcher } : {}) } as any);
+                const res = await fetch(url, {
+                    headers,
+                    signal: AbortSignal.timeout(45_000),
+                    ...(dispatcher ? { dispatcher } : {}),
+                } as any);
                 if (res.status === 401 || res.status === 403 || res.status === 429 || res.status === 529) {
-                    log.warning(`Blocked/rate-limited with HTTP ${res.status}: ${url}`);
+                    lastError = `Blocked or rate-limited with HTTP ${res.status}: ${url}`;
+                    log.warning(lastError);
+                    await sleep(1500 * (attempt + 1));
+                    continue;
+                }
+                if (res.status >= 500) {
+                    lastError = `Myntra returned transient HTTP ${res.status}: ${url}`;
+                    log.warning(lastError);
                     await sleep(1500 * (attempt + 1));
                     continue;
                 }
                 if (!res.ok) {
-                    log.warning(`HTTP ${res.status}: ${url}`);
-                    return null;
+                    return { html: null, error: `Myntra returned HTTP ${res.status}: ${url}` };
                 }
-                return await res.text();
+                return { html: await res.text() };
             } catch (error) {
-                log.warning(`Request failed for ${url}: ${(error as Error).message}`);
+                lastError = `Request failed for ${url}: ${(error as Error).message}`;
+                log.warning(lastError);
                 await sleep(1000 * (attempt + 1));
+            } finally {
+                if (dispatcher) {
+                    try {
+                        await dispatcher.close();
+                    } catch (error) {
+                        log.debug(`Could not close a Myntra proxy connection cleanly: ${(error as Error).message}`);
+                    }
+                }
             }
         }
-        return null;
+        return { html: null, error: lastError };
     }
 
     let saved = 0;
     let spendingLimitReached = false;
+    let parsedTargetCount = 0;
+    let failedTargetCount = 0;
+    const targetFailures: string[] = [];
     const seen = new Set<string>();
 
     async function pushRecords(records: ProductRecord[]): Promise<void> {
@@ -83,31 +117,40 @@ try {
         }
     }
 
-    async function scrapeTarget(urlBuilder: (page: number) => string, searchQuery: string | null, categoryPath: string | null): Promise<void> {
+    async function scrapeTarget(urlBuilder: (page: number) => string, searchQuery: string | null, categoryPath: string | null): Promise<TargetResult> {
         let page = 1;
         let position = 1;
         let stagnantPages = 0;
+        let parsedAnyPage = false;
 
         while (saved < input.maxResults && page <= 20 && stagnantPages < 2 && !spendingLimitReached) {
             const url = urlBuilder(page);
             log.info(`Fetching Myntra page ${page}: ${url}`);
             const before = saved;
-            const html = await fetchHtml(url);
-            if (!html) break;
+            const response = await fetchHtml(url);
+            if (!response.html) return { parsed: parsedAnyPage, failure: response.error ?? `No response from ${url}` };
 
-            const data = extractMyxData(html);
-            const products = productsFromMyx(data);
-            if (products.length === 0) {
-                log.warning(`No products parsed from ${url}. Myntra layout may have changed or blocked the request.`);
-                break;
+            const data = extractMyxData(response.html);
+            const payload = classifyMyxPayload(data);
+            if (payload.kind === 'invalid') {
+                return { parsed: parsedAnyPage, failure: `${payload.reason}: ${url}` };
             }
+            if (payload.kind === 'empty') {
+                log.info(`Myntra returned a valid empty product list on page ${page}: ${url}`);
+                return { parsed: true };
+            }
+            const products = payload.products;
 
             const records = products
                 .map((product, index) => toRecord(product, searchQuery, categoryPath, position + index))
                 .filter((record): record is ProductRecord => record !== null);
+            if (records.length === 0) {
+                return { parsed: parsedAnyPage, failure: `Myntra returned product rows but none had a valid title and Myntra product URL: ${url}` };
+            }
+            parsedAnyPage = true;
             await pushRecords(records);
 
-            if (spendingLimitReached) break;
+            if (spendingLimitReached) return { parsed: true };
 
             log.info(`Parsed ${records.length} product(s); saved ${saved}/${input.maxResults}.`);
 
@@ -119,27 +162,44 @@ try {
                 await sleep(700 + Math.floor(Math.random() * 1000));
             }
         }
+
+        return { parsed: parsedAnyPage };
+    }
+
+    function recordTargetResult(label: string, result: TargetResult): void {
+        if (result.parsed) parsedTargetCount++;
+        if (result.failure) {
+            failedTargetCount++;
+            targetFailures.push(`${label}: ${result.failure}`);
+            log.warning(`Myntra target ended with an error: ${label}: ${result.failure}`);
+        }
     }
 
     for (const query of input.searchQueries) {
         if (saved >= input.maxResults || spendingLimitReached) break;
-        await scrapeTarget((page) => buildSearchUrl(query, page, input.sortBy), query, null);
+        const result = await scrapeTarget((page) => buildSearchUrl(query, page, input.sortBy), query, null);
+        recordTargetResult(`search "${query}"`, result);
     }
 
     for (const category of input.categoryPaths) {
         if (saved >= input.maxResults || spendingLimitReached) break;
         const normalized = normalizeCategoryPath(category);
-        await scrapeTarget((page) => buildCategoryUrl(category, page, input.sortBy), null, normalized);
+        const result = await scrapeTarget((page) => buildCategoryUrl(normalized, page, input.sortBy), null, normalized);
+        recordTargetResult(`category "${normalized}"`, result);
     }
 
-    if (saved === 0 && !spendingLimitReached) {
-        throw new Error('No Myntra products were saved. Try a broader search query, category path, lower filters, or Residential India proxy.');
+    const outcome = classifyRunOutcome(saved, spendingLimitReached, parsedTargetCount, failedTargetCount);
+    if (targetFailures.length > 0) {
+        log.warning(`Completed with ${targetFailures.length} target issue(s). First issue: ${targetFailures[0]}`);
     }
 
-    if (!spendingLimitReached) {
+    if (outcome === 'empty') {
+        await Actor.setStatusMessage('Finished successfully: valid Myntra pages returned no products');
+        log.warning('Valid Myntra product payloads were parsed, but the selected targets returned no products.');
+    } else if (outcome === 'results') {
         await Actor.setStatusMessage(`Finished with ${saved} unique Myntra products`);
     }
-    log.info(`Myntra scrape finished. ${saved} products saved.`);
+    log.info(`Myntra scrape finished. ${saved} products saved; ${parsedTargetCount} target(s) parsed; ${failedTargetCount} target issue(s).`);
 } catch (error) {
     log.exception(error instanceof Error ? error : new Error(String(error)), 'Myntra scraper failed');
     throw error;

@@ -9,8 +9,20 @@ const cleanString = (value: unknown): string | null => {
 };
 
 const numberOrNull = (value: unknown): number | null => {
-    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-    return value;
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+    if (typeof value === 'string') {
+        const normalized = value.trim().replace(/,/g, '');
+        if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null;
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    }
+    return null;
+};
+
+const idOrNull = (value: unknown): string | null => {
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
+    if (typeof value === 'string' && /^\d+$/.test(value.trim())) return value.trim();
+    return null;
 };
 
 const textOrNA = (value: unknown): string => cleanString(value) ?? 'N/A';
@@ -19,16 +31,24 @@ const httpsUrl = (value: string | null | undefined): string | null => {
     const cleaned = cleanString(value);
     if (!cleaned) return null;
     if (cleaned.toLowerCase() === 'proxied content') return null;
-    if (cleaned.startsWith('//')) return `https:${cleaned}`;
-    if (cleaned.startsWith('http://')) return `https://${cleaned.slice('http://'.length)}`;
-    if (cleaned.startsWith('https://')) return cleaned;
-    return `${MYNTRA_ORIGIN}/${cleaned.replace(/^\/+/, '')}`;
+    try {
+        const url = cleaned.startsWith('//')
+            ? new URL(`https:${cleaned}`)
+            : new URL(cleaned, `${MYNTRA_ORIGIN}/`);
+        if (!['http:', 'https:'].includes(url.protocol)) return null;
+        url.protocol = 'https:';
+        return url.toString();
+    } catch {
+        return null;
+    }
 };
 
 const discountPercentFromLabel = (label: string | null): number | null => {
     if (!label) return null;
     const match = label.match(/(\d+)\s*%/);
-    return match ? Number(match[1]) : null;
+    if (!match) return null;
+    const value = Number(match[1]);
+    return value <= 100 ? value : null;
 };
 
 const splitSizes = (value: string | null | undefined): string[] => {
@@ -62,14 +82,17 @@ const bestImage = (product: MyntraProduct): string | null => {
 const productUrl = (product: MyntraProduct): string | null => {
     const landing = cleanString(product.landingPageUrl);
     if (!landing) return null;
-    return httpsUrl(landing);
+    const url = httpsUrl(landing);
+    if (!url) return null;
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase().replace(/^www\./, '') !== 'myntra.com') return null;
+    return parsed.toString();
 };
 
 export function extractMyxData(html: string): unknown | null {
-    const marker = 'window.__myx = ';
-    const start = html.indexOf(marker);
-    if (start < 0) return null;
-    const bodyStart = start + marker.length;
+    const assignment = /window\.__myx\s*=\s*/g.exec(html);
+    if (!assignment) return null;
+    const bodyStart = assignment.index + assignment[0].length;
     const end = html.indexOf('</script>', bodyStart);
     if (end < 0) return null;
     const raw = html.slice(bodyStart, end).trim().replace(/;$/, '');
@@ -87,6 +110,24 @@ export function productsFromMyx(data: unknown): MyntraProduct[] {
     return Array.isArray(products) ? products as MyntraProduct[] : [];
 }
 
+export type MyxPayloadClassification =
+    | { kind: 'products'; products: MyntraProduct[] }
+    | { kind: 'empty'; products: [] }
+    | { kind: 'invalid'; products: []; reason: string };
+
+export function classifyMyxPayload(data: unknown): MyxPayloadClassification {
+    if (!data || typeof data !== 'object') {
+        return { kind: 'invalid', products: [], reason: 'window.__myx was missing or was not valid JSON' };
+    }
+    const root = data as { searchData?: { results?: { products?: unknown } } };
+    const products = root.searchData?.results?.products;
+    if (!Array.isArray(products)) {
+        return { kind: 'invalid', products: [], reason: 'window.__myx did not contain searchData.results.products' };
+    }
+    if (products.length === 0) return { kind: 'empty', products: [] };
+    return { kind: 'products', products: products as MyntraProduct[] };
+}
+
 export function toRecord(product: MyntraProduct, searchQuery: string | null, categoryPath: string | null, position: number): ProductRecord | null {
     const title = cleanString(product.productName) ?? cleanString(product.product);
     const url = productUrl(product);
@@ -97,13 +138,13 @@ export function toRecord(product: MyntraProduct, searchQuery: string | null, cat
     const discountPercent = mrp !== null && price !== null && mrp > price
         ? Math.round(((mrp - price) / mrp) * 100)
         : discountPercentFromLabel(cleanString(product.discountDisplayLabel));
-    const productId = numberOrNull(product.productId);
+    const productId = idOrNull(product.productId);
 
     return {
         source: 'myntra',
         searchQuery: cleanString(searchQuery) ?? cleanString(categoryPath) ?? 'N/A',
         position,
-        productId: productId !== null ? String(productId) : null,
+        productId,
         title,
         brand: textOrNA(product.brand),
         price,

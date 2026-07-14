@@ -1,15 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { MyntraProduct } from './types.js';
-import { extractMyxData, productsFromMyx, toRecord } from './routes.js';
+import { classifyMyxPayload, extractMyxData, productsFromMyx, toRecord } from './routes.js';
 
 test('extracts embedded Myntra product payload', () => {
-    const html = '<html><script>window.__myx = {"searchData":{"results":{"products":[{"productId":123,"productName":"Test Tee","landingPageUrl":"/tshirts/test/123/buy"}]}}};</script></html>';
+    const html = '<html><script>window.__myx={"searchData":{"results":{"products":[{"productId":123,"productName":"Test Tee","landingPageUrl":"/tshirts/test/123/buy"}]}}};</script></html>';
     const data = extractMyxData(html);
     const products = productsFromMyx(data);
 
     assert.equal(products.length, 1);
     assert.equal(products[0].productId, 123);
+    assert.equal(classifyMyxPayload(data).kind, 'products');
+    assert.equal(classifyMyxPayload({ searchData: { results: { products: [] } } }).kind, 'empty');
+    assert.equal(classifyMyxPayload({ searchData: { results: {} } }).kind, 'invalid');
+    assert.equal(extractMyxData('<html>No payload</html>'), null);
 });
 
 test('maps Myntra product fields to the public dataset record', () => {
@@ -64,4 +68,24 @@ test('drops invalid placeholder image URLs and requires title plus URL', () => {
     assert.equal(record.packSize, 'N/A');
     assert.equal(record.imageUrl, null);
     assert.equal(toRecord({ productName: 'No URL' }, 'q', null, 1), null);
+    assert.equal(toRecord({ productName: 'External URL', landingPageUrl: 'https://example.com/product' }, 'q', null, 1), null);
+});
+
+test('normalizes numeric-string product fields without fabricating invalid IDs', () => {
+    const record = toRecord({
+        productId: '0042867022',
+        productName: 'Numeric Tee',
+        landingPageUrl: '/numeric-tee/42867022/buy',
+        price: '640' as unknown as number,
+        mrp: '1,299' as unknown as number,
+        rating: '4.2' as unknown as number,
+    }, 'tee', null, 1);
+
+    assert.ok(record);
+    assert.equal(record.productId, '0042867022');
+    assert.equal(record.price, 640);
+    assert.equal(record.mrp, 1299);
+    assert.equal(record.rating, 4.2);
+    assert.equal(toRecord({ productId: 'not-an-id', productName: 'No ID', landingPageUrl: '/no-id/buy' }, 'q', null, 1)?.productId, null);
+    assert.equal(toRecord({ productName: 'Bad price', landingPageUrl: '/bad-price/buy', price: -1 }, 'q', null, 1)?.price, null);
 });

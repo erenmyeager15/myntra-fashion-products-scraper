@@ -31,7 +31,7 @@
         "product-scraped": {
           "eventTitle": "Product scraped",
           "eventDescription": "Charged once for each clean Myntra product record saved to the dataset.",
-          "eventPriceUsd": 0.002,
+          "eventPriceUsd": 0.0015,
           "isPrimaryEvent": true,
           "isOneTimeEvent": false
         }

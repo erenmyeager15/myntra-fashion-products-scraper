@@ -31,9 +31,9 @@ For a low-cost first run, use the default sample input: `tshirts`, one product, 
 | Event | Price | Notes |
 | --- | ---: | --- |
 | `apify-actor-start` | `$0.00005` per GB | Charged when the Actor starts. A 512 MB run charges the minimum one start event. |
-| `product-scraped` | `$0.002` per product | Charged once for each clean Myntra product record saved to the dataset. |
+| `product-scraped` | `$0.0015` per product | Charged once for each clean Myntra product record saved to the dataset. |
 
-Example product-event cost: 1,000 saved products cost `$2.00`; 10,000 saved products cost `$20.00`. Start events are tiny but still included in paid runs.
+Example product-event cost: 1,000 saved products cost `$1.50`; 10,000 saved products cost `$15.00`. Start events are tiny but still included in paid runs.
 
 Failed, blocked, duplicate, or empty records are not charged as `product-scraped` events. The Actor stops before further Myntra requests when the user's maximum run cost is reached.
 
@@ -49,7 +49,7 @@ To control cost, start with one query and `maxResults: 1`. Increase volume only 
 | `sortBy` | string | `recommended` | `recommended`, `popularity`, `price_asc`, `price_desc`, `new`, `discount`, or `rating`. |
 | `proxyConfiguration` | object | Residential India | Apify Proxy settings. |
 
-Provide at least one search query or one category path. The Actor rejects more than 10 total search/category targets per run.
+Provide at least one search query or one category path. Duplicate search terms and equivalent category URL/path inputs are removed before requests begin. The Actor rejects more than 10 total search/category targets per run, non-Myntra category URLs, invalid sort values, and out-of-range result limits instead of silently changing them.
 
 ## Example Input
 
@@ -137,9 +137,9 @@ console.log(`Got ${items.length} Myntra products`);
 
 ## How It Works
 
-The Actor builds Myntra search or category listing URLs, fetches server-rendered pages through optional proxy settings, reads the embedded `window.__myx` product payload, deduplicates by product ID, normalizes catalog and price fields, and writes clean records to the Apify dataset.
+The Actor builds Myntra search or category listing URLs, fetches server-rendered pages through optional proxy settings, reads the embedded `window.__myx` product payload, deduplicates by product ID, normalizes catalog and price fields, and writes clean records to the Apify dataset. HTTP attempts have a 45-second timeout, blocked/transient responses receive bounded retries, and per-request proxy connections are closed after use.
 
-If no products are saved, the run fails with a clear message instead of appearing successful with an empty dataset.
+If Myntra returns a valid empty product array for the selected query or category, the run succeeds with an honest empty dataset. If every target is blocked, returns invalid HTML, or no longer exposes the expected product payload, the run fails visibly instead of misreporting that source failure as an empty search.
 
 ## Known Limits
 
@@ -147,6 +147,7 @@ If no products are saved, the run fails with a clear message instead of appearin
 - Some products do not expose rating, rating count, stock, or size data.
 - Very narrow category paths or queries may return no products.
 - Residential India proxy is recommended for cloud reliability.
+- Pagination is bounded to 20 pages per target, two stagnant pages, 500 total saved products, and at most 10 targets per run.
 - This Actor is not affiliated with Myntra.
 
 ## Responsible Use

@@ -23,7 +23,7 @@ export interface NormalizedInput {
 
 export interface MyntraProduct {
     landingPageUrl?: string;
-    productId?: number;
+    productId?: number | string;
     product?: string;
     productName?: string;
     brand?: string;
