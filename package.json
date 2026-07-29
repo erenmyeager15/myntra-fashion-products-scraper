@@ -11,11 +11,18 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test dist/billing.test.js dist/contracts.test.js dist/input.test.js dist/outcome.test.js dist/routes.test.js"
   },
-  "keywords": ["apify", "myntra", "fashion", "ecommerce", "products", "scraper"],
+  "keywords": [
+    "apify",
+    "myntra",
+    "fashion",
+    "ecommerce",
+    "products",
+    "scraper"
+  ],
   "license": "Apache-2.0",
   "dependencies": {
     "apify": "^3.2.0",
-    "undici": "^6.19.0"
+    "impit": "^0.14.1"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

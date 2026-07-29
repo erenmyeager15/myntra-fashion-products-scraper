@@ -1,5 +1,5 @@
 import { Actor, log } from 'apify';
-import { ProxyAgent } from 'undici';
+import { Impit } from 'impit';
 import type { ProductRecord } from './types.js';
 import { wasPushedRecordSaved } from './billing.js';
 import { buildCategoryUrl, buildSearchUrl, normalizeCategoryPath, normalizeInput } from './input.js';
@@ -43,18 +43,17 @@ try {
     async function fetchHtml(url: string): Promise<FetchHtmlResult> {
         let lastError = `Request failed for ${url}`;
         for (let attempt = 0; attempt < 4; attempt++) {
-            let dispatcher: ProxyAgent | undefined;
-            if (proxyConfiguration) {
-                const proxyUrl = await proxyConfiguration.newUrl();
-                if (proxyUrl) dispatcher = new ProxyAgent(proxyUrl);
-            }
+            const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl() : undefined;
+            const client = new Impit({
+                browser: 'chrome',
+                headers,
+                maxRedirects: 5,
+                proxyUrl,
+                timeout: 45_000,
+            });
 
             try {
-                const res = await fetch(url, {
-                    headers,
-                    signal: AbortSignal.timeout(45_000),
-                    ...(dispatcher ? { dispatcher } : {}),
-                } as any);
+                const res = await client.fetch(url);
                 if (res.status === 401 || res.status === 403 || res.status === 429 || res.status === 529) {
                     lastError = `Blocked or rate-limited with HTTP ${res.status}: ${url}`;
                     log.warning(lastError);
@@ -75,14 +74,6 @@ try {
                 lastError = `Request failed for ${url}: ${(error as Error).message}`;
                 log.warning(lastError);
                 await sleep(1000 * (attempt + 1));
-            } finally {
-                if (dispatcher) {
-                    try {
-                        await dispatcher.close();
-                    } catch (error) {
-                        log.debug(`Could not close a Myntra proxy connection cleanly: ${(error as Error).message}`);
-                    }
-                }
             }
         }
         return { html: null, error: lastError };
@@ -200,11 +191,11 @@ try {
         await Actor.setStatusMessage(`Finished with ${saved} unique Myntra products`);
     }
     log.info(`Myntra scrape finished. ${saved} products saved; ${parsedTargetCount} target(s) parsed; ${failedTargetCount} target issue(s).`);
-} catch (error) {
-    log.exception(error instanceof Error ? error : new Error(String(error)), 'Myntra scraper failed');
-    throw error;
-} finally {
     await Actor.exit();
+} catch (error) {
+    const failure = error instanceof Error ? error : new Error(String(error));
+    log.exception(failure, 'Myntra scraper failed');
+    await Actor.fail(failure.message);
 }
 
 function sleep(ms: number): Promise<void> {

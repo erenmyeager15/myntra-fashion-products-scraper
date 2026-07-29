@@ -137,16 +137,16 @@ console.log(`Got ${items.length} Myntra products`);
 
 ## How It Works
 
-The Actor builds Myntra search or category listing URLs, fetches server-rendered pages through optional proxy settings, reads the embedded `window.__myx` product payload, deduplicates by product ID, normalizes catalog and price fields, and writes clean records to the Apify dataset. HTTP attempts have a 45-second timeout, blocked/transient responses receive bounded retries, and per-request proxy connections are closed after use.
+The Actor builds Myntra search or category listing URLs, fetches server-rendered pages with a lightweight Chrome TLS fingerprint through optional proxy settings, reads the embedded `window.__myx` product payload, deduplicates by product ID, normalizes catalog and price fields, and writes clean records to the Apify dataset. HTTP attempts have a 45-second timeout and blocked/transient responses receive bounded retries.
 
-If Myntra returns a valid empty product array for the selected query or category, the run succeeds with an honest empty dataset. If every target is blocked, returns invalid HTML, or no longer exposes the expected product payload, the run fails visibly instead of misreporting that source failure as an empty search.
+If Myntra returns a valid empty product array for the selected query or category, the run succeeds with an honest empty dataset. If every target is blocked, returns invalid HTML, or no longer exposes the expected product payload, the run exits with a failed status instead of misreporting that source failure as an empty or successful search.
 
 ## Known Limits
 
 - Myntra can change page structure or embedded payloads.
 - Some products do not expose rating, rating count, stock, or size data.
 - Very narrow category paths or queries may return no products.
-- Residential India proxy is recommended for cloud reliability.
+- Residential India proxy is enabled by default because direct and datacenter cloud traffic can receive incomplete pages.
 - Pagination is bounded to 20 pages per target, two stagnant pages, 500 total saved products, and at most 10 targets per run.
 - This Actor is not affiliated with Myntra.
 

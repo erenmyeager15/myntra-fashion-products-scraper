@@ -80,8 +80,7 @@ test('normalizes custom and Apify proxy editor modes', () => {
     });
     assert.deepEqual(apify.proxyConfiguration, {
         useApifyProxy: true,
-        apifyProxyGroups: ['RESIDENTIAL'],
-        apifyProxyCountry: 'IN',
+        apifyProxyGroups: [],
     });
 
     assert.throws(

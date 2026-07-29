@@ -158,11 +158,18 @@ function normalizeProxyConfiguration(value: ActorInput['proxyConfiguration'] | u
     if (value.apifyProxyGroups !== undefined && !Array.isArray(value.apifyProxyGroups)) {
         throw new Error('proxyConfiguration.apifyProxyGroups must be an array of strings.');
     }
+    const groupsWereProvided = value.apifyProxyGroups !== undefined;
     const groups = (value.apifyProxyGroups ?? ['RESIDENTIAL'])
         .map((group) => {
             if (typeof group !== 'string' || !group.trim()) throw new Error('Apify Proxy groups must be non-empty strings.');
             return group.trim().toUpperCase();
         });
+    if (groupsWereProvided && groups.length === 0) {
+        return {
+            useApifyProxy: true,
+            apifyProxyGroups: [],
+        };
+    }
     const countryValue = value.apifyProxyCountry ?? 'IN';
     if (typeof countryValue !== 'string') throw new Error('Apify Proxy country must be a two-letter country code.');
     const country = countryValue.trim().toUpperCase();
@@ -170,7 +177,7 @@ function normalizeProxyConfiguration(value: ActorInput['proxyConfiguration'] | u
 
     return {
         useApifyProxy: true,
-        apifyProxyGroups: groups.length > 0 ? Array.from(new Set(groups)) : ['RESIDENTIAL'],
+        apifyProxyGroups: Array.from(new Set(groups)),
         apifyProxyCountry: country,
     };
 }
