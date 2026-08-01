@@ -85,26 +85,28 @@ Provide at least one search query or one category path. Duplicate search terms a
 
 ## Output Dataset
 
+The following record came from a successful Actor run on July 29, 2026. Product availability and prices can change after collection.
+
 ```json
 {
   "source": "myntra",
   "searchQuery": "tshirts",
   "position": 1,
-  "productId": "42867022",
-  "title": "UMILDO Boys Brand Logo Los Angeles Lakers Printed Dri-FIT T-shirt",
-  "brand": "UMILDO",
-  "price": 640,
-  "mrp": 1299,
-  "discountPercent": 51,
+  "productId": "41225110",
+  "title": "VERO AMORE Printed Round Neck Lounge Tshirts",
+  "brand": "VERO AMORE",
+  "price": 385,
+  "mrp": 1399,
+  "discountPercent": 72,
   "currency": "INR",
-  "packSize": "4-6Y, 6-8Y, 8-10Y, 10-12Y, 12-14Y",
-  "category": "Tshirts",
+  "packSize": "M, L, XL, XXL, 3XL",
+  "category": "Lounge Tshirts",
   "rating": 0,
   "ratingCount": 0,
-  "inStock": null,
-  "productUrl": "https://www.myntra.com/tshirts/umildo/umildo-boys-brand-logo-los-angeles-lakers-printed-dri-fit-t-shirt/42867022/buy",
-  "imageUrl": "https://assets.myntassets.com/assets/images/2026/JUNE/6/example.jpg",
-  "scrapedAt": "2026-06-12T19:56:55.975Z"
+  "inStock": true,
+  "productUrl": "https://www.myntra.com/lounge-tshirts/vero+amore/vero-amore-printed-round-neck-lounge-tshirts-/41225110/buy",
+  "imageUrl": "https://assets.myntassets.com/assets/images/2026/APRIL/8/F0Qyqm09_de8490ecf5ed43b088db587be14d9011.jpg",
+  "scrapedAt": "2026-07-29T11:03:33.837Z"
 }
 ```
 

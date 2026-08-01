@@ -4,7 +4,7 @@
   "title": "Myntra Fashion Products Scraper - Catalog & Price Data",
   "description": "Scrape public Myntra fashion product search/category results with titles, brands, prices, MRP, discounts, ratings, sizes, categories, image URLs, and product URLs.",
   "version": "1.0",
-  "categories": ["ECOMMERCE", "OTHER"],
+  "categories": ["ECOMMERCE"],
   "categoriesVersion": "1.0.0",
   "dockerfile": "Dockerfile",
   "input": "../INPUT_SCHEMA.json",
