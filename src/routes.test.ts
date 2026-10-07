@@ -3,6 +3,21 @@ import test from 'node:test';
 import type { MyntraProduct } from './types.js';
 import { classifyMyxPayload, extractMyxData, productsFromMyx, toRecord } from './routes.js';
 
+test('returns source size/colour detail without assuming unknown inventory is sold out', () => {
+    const record = toRecord({ productName: 'Tee', landingPageUrl: '/tee/123/buy',
+        primaryColour: 'Blue', gender: 'Unisex', sizes: 'S,M,S', price: 80, mrp: 100,
+        inventoryInfo: [{ label: 'S', available: false }, { brandSizeLabel: 'M' }],
+        images: [{ src: '//assets.myntassets.com/blue.jpg' }, { src: '//assets.myntassets.com/blue.jpg' }],
+    }, 'tee', null, 1)!;
+    assert.equal(record.inStock, null);
+    assert.equal(record.colour, 'Blue');
+    assert.equal(record.gender, 'Unisex');
+    assert.deepEqual(record.sizes, ['S', 'M']);
+    assert.deepEqual(record.sizeAvailability, [{ size: 'S', available: false }, { size: 'M', available: null }]);
+    assert.equal(record.discountAmount, 20);
+    assert.equal(record.images.length, 1);
+});
+
 test('extracts embedded Myntra product payload', () => {
     const html = '<html><script>window.__myx={"searchData":{"results":{"products":[{"productId":123,"productName":"Test Tee","landingPageUrl":"/tshirts/test/123/buy"}]}}};</script></html>';
     const data = extractMyxData(html);
@@ -14,6 +29,13 @@ test('extracts embedded Myntra product payload', () => {
     assert.equal(classifyMyxPayload({ searchData: { results: { products: [] } } }).kind, 'empty');
     assert.equal(classifyMyxPayload({ searchData: { results: {} } }).kind, 'invalid');
     assert.equal(extractMyxData('<html>No payload</html>'), null);
+});
+
+test('extracts only balanced JSON when the script contains more JavaScript', () => {
+    const data = { searchData: { results: { products: [{ productName: 'Brace } and "quote"', landingPageUrl: '/item/1/buy' }] } } };
+    assert.deepEqual(extractMyxData(`<script>window.__myx = ${JSON.stringify(data)}; window.other = true;</script>`), data);
+    assert.equal(extractMyxData('<script>window.__myx = {bad};</script>'), null);
+    assert.equal(toRecord(null as unknown as MyntraProduct, 'x', null, 1), null);
 });
 
 test('maps Myntra product fields to the public dataset record', () => {

@@ -9,7 +9,7 @@
     "dev": "tsx src/main.ts",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test dist/billing.test.js dist/contracts.test.js dist/input.test.js dist/outcome.test.js dist/routes.test.js"
+    "test": "npm run build && node --test dist/billing.test.js dist/contracts.test.js dist/input.test.js dist/outcome.test.js dist/routes.test.js dist/transport.test.js"
   },
   "keywords": [
     "apify",
@@ -26,6 +26,11 @@
   },
   "devDependencies": {
     "typescript": "^5.4.0"
+  },
+  "overrides": {
+    "get-uri": {
+      "basic-ftp": "6.2.2"
+    }
   },
   "engines": {
     "node": ">=20.0.0"

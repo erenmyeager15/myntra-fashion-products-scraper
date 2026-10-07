@@ -10,4 +10,5 @@ test('classifies result, valid-empty, and budget-limited runs', () => {
 
 test('fails when every target was blocked or malformed', () => {
     assert.throws(() => classifyRunOutcome(0, false, 0, 2), /Failed targets: 2/);
+    assert.throws(() => classifyRunOutcome(0, false, 1, 1), /1 target\(s\) failed/);
 });

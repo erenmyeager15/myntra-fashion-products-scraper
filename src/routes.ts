@@ -67,7 +67,8 @@ const stockFromProduct = (product: MyntraProduct): boolean | null => {
         ?.map((item) => item.available)
         .filter((value): value is boolean => typeof value === 'boolean');
     if (!availability || availability.length === 0) return null;
-    return availability.some(Boolean);
+    if (availability.some(Boolean)) return true;
+    return availability.length === product.inventoryInfo?.length ? false : null;
 };
 
 const bestImage = (product: MyntraProduct): string | null => {
@@ -95,12 +96,26 @@ export function extractMyxData(html: string): unknown | null {
     const bodyStart = assignment.index + assignment[0].length;
     const end = html.indexOf('</script>', bodyStart);
     if (end < 0) return null;
-    const raw = html.slice(bodyStart, end).trim().replace(/;$/, '');
-    try {
-        return JSON.parse(raw);
-    } catch {
-        return null;
+    const script = html.slice(bodyStart, end).trim();
+    if (!script.startsWith('{')) return null;
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let index = 0; index < script.length; index++) {
+        const char = script[index];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (char === '\\') escaped = true;
+            else if (char === '"') quoted = false;
+        } else if (char === '"') quoted = true;
+        else if (char === '{') depth++;
+        else if (char === '}' && --depth === 0) {
+            // Ignore subsequent JavaScript; never execute embedded source code.
+            try { return JSON.parse(script.slice(0, index + 1)); }
+            catch { return null; }
+        }
     }
+    return null;
 }
 
 export function productsFromMyx(data: unknown): MyntraProduct[] {
@@ -129,6 +144,11 @@ export function classifyMyxPayload(data: unknown): MyxPayloadClassification {
 }
 
 export function toRecord(product: MyntraProduct, searchQuery: string | null, categoryPath: string | null, position: number): ProductRecord | null {
+    if (!product || typeof product !== 'object') return null;
+    product = { ...product,
+        images: Array.isArray(product.images) ? product.images.filter((item) => item && typeof item === 'object') : [],
+        inventoryInfo: Array.isArray(product.inventoryInfo) ? product.inventoryInfo.map((item) => item && typeof item === 'object' ? item : {}) : [],
+    };
     const title = cleanString(product.productName) ?? cleanString(product.product);
     const url = productUrl(product);
     if (!title || !url) return null;
@@ -159,5 +179,15 @@ export function toRecord(product: MyntraProduct, searchQuery: string | null, cat
         productUrl: url,
         imageUrl: bestImage(product),
         scrapedAt: new Date().toISOString(),
+        colour: cleanString(product.primaryColour),
+        gender: cleanString(product.gender),
+        sizes: [...new Set(splitSizes(product.sizes))],
+        sizeAvailability: (product.inventoryInfo ?? []).map((item) => ({
+            size: cleanString(item.brandSizeLabel) ?? cleanString(item.label),
+            available: typeof item.available === 'boolean' ? item.available : null,
+        })),
+        images: [...new Set([bestImage(product), ...(product.images ?? []).map((item) => httpsUrl(item.src))]
+            .filter((value): value is string => value !== null))],
+        discountAmount: price !== null && mrp !== null && mrp >= price ? Math.round((mrp - price) * 100) / 100 : null,
     };
 }

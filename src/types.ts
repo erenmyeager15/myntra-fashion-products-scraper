@@ -62,4 +62,10 @@ export interface ProductRecord {
     productUrl: string | null;
     imageUrl: string | null;
     scrapedAt: string;
+    colour: string | null;
+    gender: string | null;
+    sizes: string[];
+    sizeAvailability: { size: string | null; available: boolean | null }[];
+    images: string[];
+    discountAmount: number | null;
 }

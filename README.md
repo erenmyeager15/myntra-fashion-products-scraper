@@ -8,12 +8,16 @@ For a low-cost first run, use the default sample input: `tshirts`, one product, 
 
 ## What It Extracts
 
+This upgrade adds `colour`, `gender`, deduplicated `sizes`, `sizeAvailability`, `images`, and `discountAmount` from the existing listing response, without extra product-detail requests. Listed sizes are not necessarily in stock: only explicit inventory flags set availability, and unknown values remain `null`.
+
+`RUN_SUMMARY` reports saved products, parsed/failed targets, partial results and spending-limit stops. Successful HTTP connections are reused; transient failures and HTTP 200 pages missing product data replace the client/proxy with at most three attempts. Each attempt checks the spending limit. Interrupted streams can recover; oversized responses are not downloaded repeatedly. Responses are limited to 8 MiB while streaming. Partial results are not proof that every requested target succeeded.
+
 - Source, search query, and result position
 - Myntra product ID
 - Product title and brand
 - Current price, MRP, discount percentage, and currency
 - Star rating and rating count
-- Available sizes in `packSize`
+- Listed sizes in `packSize` and `sizes`; explicit size-level stock flags in `sizeAvailability`
 - Category and stock flag where available
 - Product URL and image URL
 - ISO scrape timestamp
@@ -33,7 +37,9 @@ For a low-cost first run, use the default sample input: `tshirts`, one product, 
 | `apify-actor-start` | `$0.00005` per GB | Charged when the Actor starts. A 512 MB run charges the minimum one start event. |
 | `product-scraped` | `$0.0015` per product | Charged once for each clean Myntra product record saved to the dataset. |
 
-Example product-event cost: 1,000 saved products cost `$1.50`; 10,000 saved products cost `$15.00`. Start events are tiny but still included in paid runs.
+**Scheduled pricing change:** From October 21, 2026 at 12:09 UTC (17:39 IST), the start event becomes `$0.002` (0.2 cents), with a minimum of one event and additional events depending on allocated memory. Product pricing stays `$1.50` per 1,000 products, and platform usage remains included. The start event is charged even when a run fails or returns no products.
+
+Example product-event cost across runs: 1,000 saved products cost `$1.50`; 10,000 saved products cost `$15.00`. Add the applicable start events for each run; these examples exclude start charges and are not single-run result limits.
 
 Failed, blocked, duplicate, or empty records are not charged as `product-scraped` events. The Actor stops before further Myntra requests when the user's maximum run cost is reached.
 
@@ -141,7 +147,9 @@ console.log(`Got ${items.length} Myntra products`);
 
 The Actor builds Myntra search or category listing URLs, fetches server-rendered pages with a lightweight Chrome TLS fingerprint through optional proxy settings, reads the embedded `window.__myx` product payload, deduplicates by product ID, normalizes catalog and price fields, and writes clean records to the Apify dataset. HTTP attempts have a 45-second timeout and blocked/transient responses receive bounded retries.
 
-If Myntra returns a valid empty product array for the selected query or category, the run succeeds with an honest empty dataset. If every target is blocked, returns invalid HTML, or no longer exposes the expected product payload, the run exits with a failed status instead of misreporting that source failure as an empty or successful search.
+If every requested target returns a valid empty product array, the run succeeds with an empty dataset. When no products are saved and any target fails, the run exits with a failed status and records its target diagnostics. Successful products from a partially failed run remain available and are identified in the summary.
+
+Residential India is the cloud configuration verified by owner tests. Explicit direct and custom-proxy inputs are respected. Direct mode makes one attempt per page and reports how to enable Residential India if product data is unavailable; it does not silently enable a paid proxy. A direct cloud test on October 7, 2026 returned no usable products, so direct mode is not promised to work in cloud.
 
 ## Known Limits
 

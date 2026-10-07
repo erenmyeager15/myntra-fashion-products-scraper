@@ -4,6 +4,12 @@
   "description": "Structured Myntra fashion product records with brands, product names, prices, MRP, discounts, ratings, sizes, categories, product URLs, image URLs, and scraped timestamps.",
   "type": "object",
   "properties": {
+    "runSummary": {
+      "type": "string",
+      "title": "Run coverage and target issues",
+      "description": "Parsed and failed target counts, saved products, partial-result status and spending-limit stops.",
+      "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/RUN_SUMMARY"
+    },
     "results": {
       "type": "string",
       "title": "Myntra product records",

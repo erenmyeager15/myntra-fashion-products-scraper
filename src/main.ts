@@ -5,11 +5,7 @@ import { wasPushedRecordSaved } from './billing.js';
 import { buildCategoryUrl, buildSearchUrl, normalizeCategoryPath, normalizeInput } from './input.js';
 import { classifyRunOutcome } from './outcome.js';
 import { classifyMyxPayload, extractMyxData, toRecord } from './routes.js';
-
-interface FetchHtmlResult {
-    html: string | null;
-    error?: string;
-}
+import { createHtmlFetcher } from './transport.js';
 
 interface TargetResult {
     parsed: boolean;
@@ -40,43 +36,23 @@ try {
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     };
 
-    async function fetchHtml(url: string): Promise<FetchHtmlResult> {
-        let lastError = `Request failed for ${url}`;
-        for (let attempt = 0; attempt < 4; attempt++) {
-            const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl() : undefined;
-            const client = new Impit({
-                browser: 'chrome',
-                headers,
-                maxRedirects: 5,
-                proxyUrl,
-                timeout: 45_000,
-            });
-
-            try {
-                const res = await client.fetch(url);
-                if (res.status === 401 || res.status === 403 || res.status === 429 || res.status === 529) {
-                    lastError = `Blocked or rate-limited with HTTP ${res.status}: ${url}`;
-                    log.warning(lastError);
-                    await sleep(1500 * (attempt + 1));
-                    continue;
-                }
-                if (res.status >= 500) {
-                    lastError = `Myntra returned transient HTTP ${res.status}: ${url}`;
-                    log.warning(lastError);
-                    await sleep(1500 * (attempt + 1));
-                    continue;
-                }
-                if (!res.ok) {
-                    return { html: null, error: `Myntra returned HTTP ${res.status}: ${url}` };
-                }
-                return { html: await res.text() };
-            } catch (error) {
-                lastError = `Request failed for ${url}: ${(error as Error).message}`;
-                log.warning(lastError);
-                await sleep(1000 * (attempt + 1));
-            }
-        }
-        return { html: null, error: lastError };
+    const transport = createHtmlFetcher(async () => {
+        const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl() : undefined;
+        return new Impit({
+            browser: 'chrome',
+            headers,
+            maxRedirects: 5,
+            proxyUrl,
+            timeout: 45_000,
+        });
+    }, sleep, (html) => classifyMyxPayload(extractMyxData(html)).kind !== 'invalid', {
+        maxAttempts: proxyConfiguration ? 3 : 1,
+        canAttempt: canFetch,
+    });
+    const charging = Actor.getChargingManager();
+    function canFetch(): boolean {
+        return !charging.getPricingInfo().isPayPerEvent
+            || charging.calculateMaxEventChargeCountWithinLimit('product-scraped') >= 1;
     }
 
     let saved = 0;
@@ -115,15 +91,30 @@ try {
         let parsedAnyPage = false;
 
         while (saved < input.maxResults && page <= 20 && stagnantPages < 2 && !spendingLimitReached) {
+            if (!canFetch()) {
+                spendingLimitReached = true;
+                await Actor.setStatusMessage(`Stopped at the user's spending limit after ${saved} products`);
+                return { parsed: parsedAnyPage };
+            }
             const url = urlBuilder(page);
             log.info(`Fetching Myntra page ${page}: ${url}`);
             const before = saved;
-            const response = await fetchHtml(url);
-            if (!response.html) return { parsed: parsedAnyPage, failure: response.error ?? `No response from ${url}` };
+            const response = await transport.fetch(url);
+            if (response.spendingLimitReached) {
+                spendingLimitReached = true;
+                await Actor.setStatusMessage(`Stopped at the user's spending limit after ${saved} products`);
+                return { parsed: parsedAnyPage };
+            }
+            if (!response.html) {
+                const advice = proxyConfiguration ? ''
+                    : ' Direct cloud requests may omit product data. Enable Residential India proxy in proxyConfiguration and retry.';
+                return { parsed: parsedAnyPage, failure: `${response.error ?? `No response from ${url}`}.${advice}` };
+            }
 
             const data = extractMyxData(response.html);
             const payload = classifyMyxPayload(data);
             if (payload.kind === 'invalid') {
+                transport.reset();
                 return { parsed: parsedAnyPage, failure: `${payload.reason}: ${url}` };
             }
             if (payload.kind === 'empty') {
@@ -179,6 +170,12 @@ try {
         recordTargetResult(`category "${normalized}"`, result);
     }
 
+    await Actor.setValue('RUN_SUMMARY', {
+        savedProducts: saved, parsedTargetCount, failedTargetCount, spendingLimitReached,
+        partial: saved > 0 && failedTargetCount > 0,
+        maxResultsReached: saved >= input.maxResults,
+        targetFailures,
+    });
     const outcome = classifyRunOutcome(saved, spendingLimitReached, parsedTargetCount, failedTargetCount);
     if (targetFailures.length > 0) {
         log.warning(`Completed with ${targetFailures.length} target issue(s). First issue: ${targetFailures[0]}`);

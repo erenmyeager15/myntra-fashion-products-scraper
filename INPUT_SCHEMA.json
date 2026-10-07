@@ -42,7 +42,7 @@
     },
     "proxyConfiguration": {
       "title": "Proxy Configuration",
-      "description": "Proxy settings. Myntra can hide product data from datacenter traffic, so Residential India proxy is enabled by default for reliable cloud runs.",
+      "description": "Residential India proxy is the tested cloud configuration. Direct requests may return no product data. Explicit direct/custom settings are respected; the Actor never silently switches to a paid proxy.",
       "type": "object",
       "editor": "proxy",
       "default": {
