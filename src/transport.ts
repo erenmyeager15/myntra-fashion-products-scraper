@@ -20,29 +20,38 @@ export async function readBoundedHtml(response: HtmlResponse, limit = MAX_HTML_B
     if (!response.body) throw new Error('Empty response body');
     const declared = Number(response.headers.get('content-length'));
     if (declared > limit) {
-        await response.body.cancel();
+        await response.body.cancel().catch(() => {});
         throw new ResponseTooLargeError(`Response exceeds ${limit} byte limit`);
     }
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
     let nextProbe = 0;
+    let boundaryTail = '';
     try {
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             total += value.byteLength;
             if (total > limit) {
-                await reader.cancel();
+                await reader.cancel().catch(() => {});
                 throw new ResponseTooLargeError(`Response exceeds ${limit} byte limit`);
             }
             chunks.push(value);
-            if (isComplete && total >= nextProbe) {
+            // A small chunk can finish the catalog well before the next size
+            // checkpoint. Probe at JSON-assignment boundaries as well, retaining
+            // enough tail to recognize a terminator split across chunks.
+            const boundaryText = isComplete ? boundaryTail + Buffer.from(value).toString('utf8') : '';
+            const assignmentBoundary = /}\s*(?:;|<\/script\s*>)/i.test(boundaryText);
+            boundaryTail = boundaryText.slice(-64);
+            if (isComplete && (total >= nextProbe || assignmentBoundary)) {
                 const html = Buffer.concat(chunks, total).toString('utf8');
                 // Exponential probing bounds repeated copies/parses on large pages.
                 nextProbe = Math.max(32 * 1024, total * 2);
                 if (isComplete(html)) {
-                    await reader.cancel();
+                    // Valid product data is already in hand. A socket cleanup
+                    // error must not discard it and cause a paid redownload.
+                    await reader.cancel().catch(() => {});
                     return html;
                 }
             }
@@ -78,7 +87,7 @@ export function createHtmlFetcher(createClient: () => Promise<{ fetch(url: strin
                         // connection just as for HTTP blocking, within the same retry cap.
                         error = 'Myntra returned a page without a valid product payload';
                     } else {
-                        await response.body?.cancel();
+                        await response.body?.cancel().catch(() => {});
                         error = `Myntra returned HTTP ${response.status}`;
                         if (![401, 403, 408, 429, 529].includes(response.status) && response.status < 500) {
                             client = undefined;

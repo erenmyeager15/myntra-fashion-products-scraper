@@ -38,6 +38,25 @@ test('extracts only balanced JSON when the script contains more JavaScript', () 
     assert.equal(toRecord(null as unknown as MyntraProduct, 'x', null, 1), null);
 });
 
+test('accepts complete product JSON without downloading the closing script and markup', () => {
+    const data = { searchData: { results: { products: [{ productId: 1, productName: 'Tee', landingPageUrl: '/tee/1/buy' }] } } };
+    const assignment = `<script>window.__myx = ${JSON.stringify(data)};`;
+    assert.deepEqual(extractMyxData(assignment), data);
+    assert.equal(extractMyxData(assignment.slice(0, -3)), null);
+});
+
+test('finds a valid product assignment after an initialization or malformed script', () => {
+    const data = { searchData: { results: { products: [{ productId: 2 }] } } };
+    assert.deepEqual(extractMyxData(`<script>window.__myx = {};</script><script>window.__myx = ${JSON.stringify(data)};`), data);
+    assert.deepEqual(extractMyxData(`<script>window.__myx = {broken};</script><script>window.__myx = ${JSON.stringify(data)};</script>`), data);
+});
+
+test('does not treat a JSON prefix inside an unfinished JavaScript expression as product data', () => {
+    const data = { searchData: { results: { products: [] } } };
+    assert.equal(extractMyxData(`<script>window.__myx = ${JSON.stringify(data)}.missing;`), null);
+    assert.equal(extractMyxData(`<script>window.__myx = ${JSON.stringify(data)} || fallback;`), null);
+});
+
 test('maps Myntra product fields to the public dataset record', () => {
     const product: MyntraProduct = {
         productId: 42867022,

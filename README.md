@@ -12,6 +12,8 @@ This upgrade adds `colour`, `gender`, deduplicated `sizes`, `sizeAvailability`, 
 
 `RUN_SUMMARY` reports saved products, parsed/failed targets, partial results and spending-limit stops. Successful HTTP connections are reused; transient failures and HTTP 200 pages missing product data replace the client/proxy with at most three attempts. Each attempt checks the spending limit. Interrupted streams can recover; oversized responses are not downloaded repeatedly. Responses are limited to 8 MiB while streaming. Partial results are not proof that every requested target succeeded.
 
+The parser accepts a complete, terminated JSON product assignment without waiting for the rest of its script or page. It can find the catalog after an initialization-only assignment, and it checks chunk boundaries so a small final chunk is not missed. Stream-cleanup errors do not discard valid data or cause an oversized response to be downloaded again. These safeguards are regression-tested locally; their effect on billed proxy traffic and live reliability still requires cloud verification.
+
 - Source, search query, and result position
 - Myntra product ID
 - Product title and brand

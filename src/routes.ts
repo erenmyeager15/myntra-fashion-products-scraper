@@ -91,31 +91,44 @@ const productUrl = (product: MyntraProduct): string | null => {
 };
 
 export function extractMyxData(html: string): unknown | null {
-    const assignment = /window\.__myx\s*=\s*/g.exec(html);
-    if (!assignment) return null;
-    const bodyStart = assignment.index + assignment[0].length;
-    const end = html.indexOf('</script>', bodyStart);
-    if (end < 0) return null;
-    const script = html.slice(bodyStart, end).trim();
-    if (!script.startsWith('{')) return null;
-    let depth = 0;
-    let quoted = false;
-    let escaped = false;
-    for (let index = 0; index < script.length; index++) {
-        const char = script[index];
-        if (quoted) {
-            if (escaped) escaped = false;
-            else if (char === '\\') escaped = true;
-            else if (char === '"') quoted = false;
-        } else if (char === '"') quoted = true;
-        else if (char === '{') depth++;
-        else if (char === '}' && --depth === 0) {
-            // Ignore subsequent JavaScript; never execute embedded source code.
-            try { return JSON.parse(script.slice(0, index + 1)); }
-            catch { return null; }
+    const assignments = /window\.__myx\s*=\s*/g;
+    let firstParsed: unknown | null = null;
+    // A bootstrap object can precede the actual catalog. Bound the scan and
+    // prefer an explicitly present products array, including a valid empty one.
+    for (let candidate = 0; candidate < 32; candidate++) {
+        const assignment = assignments.exec(html);
+        if (!assignment) break;
+        const bodyStart = assignment.index + assignment[0].length;
+        if (html[bodyStart] !== '{') continue;
+        const scriptEnd = html.indexOf('</script>', bodyStart);
+        const limit = scriptEnd < 0 ? html.length : scriptEnd;
+        let depth = 0;
+        let quoted = false;
+        let escaped = false;
+        for (let index = bodyStart; index < limit; index++) {
+            const char = html[index];
+            if (quoted) {
+                if (escaped) escaped = false;
+                else if (char === '\\') escaped = true;
+                else if (char === '"') quoted = false;
+            } else if (char === '"') quoted = true;
+            else if (char === '{') depth++;
+            else if (char === '}' && --depth === 0) {
+                assignments.lastIndex = index + 1;
+                const trailer = html.slice(index + 1, index + 81).trimStart();
+                // Only a terminated JSON assignment is complete; never accept
+                // the object prefix of an expression or execute source scripts.
+                if (trailer[0] !== ';' && !/^<\/script\s*>/i.test(trailer)) break;
+                try {
+                    const parsed: unknown = JSON.parse(html.slice(bodyStart, index + 1));
+                    if (classifyMyxPayload(parsed).kind !== 'invalid') return parsed;
+                    firstParsed ??= parsed;
+                } catch { /* A later assignment may contain the valid catalog. */ }
+                break;
+            }
         }
     }
-    return null;
+    return firstParsed;
 }
 
 export function productsFromMyx(data: unknown): MyntraProduct[] {

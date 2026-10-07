@@ -75,6 +75,17 @@ test('does not redownload an oversized response', async () => {
     assert.equal(calls, 1);
 });
 
+test('an oversized-response cleanup error preserves the byte-limit stop without retries', async () => {
+    let calls = 0;
+    const transport = createHtmlFetcher(async () => ({ fetch: async () => {
+        calls++;
+        const body = new ReadableStream<Uint8Array>({ cancel() { throw new Error('Cleanup failed'); } });
+        return new Response(body, { headers: { 'content-length': String(9 * 1024 * 1024) } });
+    } }), async () => assert.fail('Oversized data must not be redownloaded'), hasCompleteProducts);
+    assert.match((await transport.fetch('https://www.myntra.com/tshirts')).error!, /byte limit/);
+    assert.equal(calls, 1);
+});
+
 test('stops reading only after a complete valid product payload, cancelling the HTML tail', async () => {
     const payload = '<script>window.__myx={"searchData":{"results":{"products":[{"productId":1}]}}};</script>';
     let cancelled = false;
@@ -86,6 +97,49 @@ test('stops reading only after a complete valid product payload, cancelling the 
     assert.equal(await readBoundedHtml(new Response(body), 4096, hasCompleteProducts), payload);
     assert.equal(pulls, 1);
     assert.equal(cancelled, true);
+});
+
+test('stops at a completed product assignment before the later script-close chunk', async () => {
+    const payload = '<script>window.__myx={"searchData":{"results":{"products":[{"productId":1}]}}};';
+    let pulls = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+        pull(controller) { pulls++; controller.enqueue(Buffer.from(pulls === 1 ? payload : '</script>' + 'tail'.repeat(20000))); },
+        cancel() { cancelled = true; },
+    }, { highWaterMark: 0 });
+    assert.equal(await readBoundedHtml(new Response(body), 4096, hasCompleteProducts), payload);
+    assert.equal(pulls, 1);
+    assert.equal(cancelled, true);
+});
+
+test('detects the assignment terminator across chunks below the next exponential probe', async () => {
+    const payload = '<script>window.__myx={"searchData":{"results":{"products":[{"productId":1}]}}};';
+    const chunks = [payload.slice(0, -1), ';', '</script>' + 'tail'.repeat(20000)];
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+        pull(controller) { controller.enqueue(Buffer.from(chunks[pulls++])); },
+    }, { highWaterMark: 0 });
+    assert.equal(await readBoundedHtml(new Response(body), 4096, hasCompleteProducts), payload);
+    assert.equal(pulls, 2);
+});
+
+test('a cleanup error after complete product data never redownloads the successful page', async () => {
+    let clients = 0;
+    let calls = 0;
+    const transport = createHtmlFetcher(async () => {
+        clients++;
+        return { fetch: async () => {
+            calls++;
+            const body = new ReadableStream<Uint8Array>({
+                pull(controller) { controller.enqueue(Buffer.from(emptyPayload)); },
+                cancel() { throw new Error('Socket already closed during cleanup'); },
+            }, { highWaterMark: 0 });
+            return new Response(body);
+        } };
+    }, async () => assert.fail('Successful product data must not be retried'), hasCompleteProducts);
+    assert.equal((await transport.fetch('https://www.myntra.com/tshirts')).html, emptyPayload);
+    assert.equal(clients, 1);
+    assert.equal(calls, 1);
 });
 
 test('split payload is never mistaken for a complete response', async () => {
