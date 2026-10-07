@@ -38,13 +38,13 @@ export async function readBoundedHtml(response: HtmlResponse, limit = MAX_HTML_B
                 throw new ResponseTooLargeError(`Response exceeds ${limit} byte limit`);
             }
             chunks.push(value);
-            // A small chunk can finish the catalog well before the next size
-            // checkpoint. Probe at JSON-assignment boundaries as well, retaining
-            // enough tail to recognize a terminator split across chunks.
+            // A small chunk can finish the requested product prefix or catalog
+            // before the next size checkpoint. Probe at row/assignment boundaries
+            // too; the supplied validator decides whether enough data is usable.
             const boundaryText = isComplete ? boundaryTail + Buffer.from(value).toString('utf8') : '';
-            const assignmentBoundary = /}\s*(?:;|<\/script\s*>)/i.test(boundaryText);
+            const dataBoundary = /}\s*(?:[,\];]|<\/script\s*>)/i.test(boundaryText);
             boundaryTail = boundaryText.slice(-64);
-            if (isComplete && (total >= nextProbe || assignmentBoundary)) {
+            if (isComplete && (total >= nextProbe || dataBoundary)) {
                 const html = Buffer.concat(chunks, total).toString('utf8');
                 // Exponential probing bounds repeated copies/parses on large pages.
                 nextProbe = Math.max(32 * 1024, total * 2);

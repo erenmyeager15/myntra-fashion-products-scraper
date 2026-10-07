@@ -4,7 +4,8 @@ import type { ProductRecord } from './types.js';
 import { wasPushedRecordSaved } from './billing.js';
 import { buildCategoryUrl, buildSearchUrl, normalizeCategoryPath, normalizeInput } from './input.js';
 import { classifyRunOutcome } from './outcome.js';
-import { classifyMyxPayload, extractMyxData, toRecord } from './routes.js';
+import { toRecord } from './routes.js';
+import { readRequestedPayload } from './product-prefix.js';
 import { createHtmlFetcher } from './transport.js';
 
 interface TargetResult {
@@ -36,6 +37,15 @@ try {
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     };
 
+    const charging = Actor.getChargingManager();
+    let saved = 0;
+    let spendingLimitReached = false;
+    let parsedTargetCount = 0;
+    let failedTargetCount = 0;
+    let productPrefixResponses = 0;
+    const targetFailures: string[] = [];
+    const seen = new Set<string>();
+
     const transport = createHtmlFetcher(async () => {
         const proxyUrl = proxyConfiguration ? await proxyConfiguration.newUrl() : undefined;
         return new Impit({
@@ -45,22 +55,14 @@ try {
             proxyUrl,
             timeout: 45_000,
         });
-    }, sleep, (html) => classifyMyxPayload(extractMyxData(html)).kind !== 'invalid', {
+    }, sleep, (html) => readRequestedPayload(html, input.maxResults - saved, seen).kind !== 'invalid', {
         maxAttempts: proxyConfiguration ? 3 : 1,
         canAttempt: canFetch,
     });
-    const charging = Actor.getChargingManager();
     function canFetch(): boolean {
         return !charging.getPricingInfo().isPayPerEvent
             || charging.calculateMaxEventChargeCountWithinLimit('product-scraped') >= 1;
     }
-
-    let saved = 0;
-    let spendingLimitReached = false;
-    let parsedTargetCount = 0;
-    let failedTargetCount = 0;
-    const targetFailures: string[] = [];
-    const seen = new Set<string>();
 
     async function pushRecords(records: ProductRecord[]): Promise<void> {
         for (const record of records) {
@@ -111,8 +113,7 @@ try {
                 return { parsed: parsedAnyPage, failure: `${response.error ?? `No response from ${url}`}.${advice}` };
             }
 
-            const data = extractMyxData(response.html);
-            const payload = classifyMyxPayload(data);
+            const payload = readRequestedPayload(response.html, input.maxResults - saved, seen);
             if (payload.kind === 'invalid') {
                 transport.reset();
                 return { parsed: parsedAnyPage, failure: `${payload.reason}: ${url}` };
@@ -122,6 +123,7 @@ try {
                 return { parsed: true };
             }
             const products = payload.products;
+            if (payload.stoppedAtProductLimit) productPrefixResponses++;
 
             const records = products
                 .map((product, index) => toRecord(product, searchQuery, categoryPath, position + index))
@@ -174,6 +176,7 @@ try {
         savedProducts: saved, parsedTargetCount, failedTargetCount, spendingLimitReached,
         partial: saved > 0 && failedTargetCount > 0,
         maxResultsReached: saved >= input.maxResults,
+        productPrefixResponses,
         targetFailures,
     });
     const outcome = classifyRunOutcome(saved, spendingLimitReached, parsedTargetCount, failedTargetCount);

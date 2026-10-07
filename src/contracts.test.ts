@@ -19,5 +19,7 @@ test('keeps live pricing, resource limits, impersonated transport, and failure h
     assert.match(main, /await Actor\.exit\(\)/);
     assert.match(main, /await Actor\.fail\(failure\.message\)/);
     assert.match(main, /classifyRunOutcome/);
+    assert.match(main, /readRequestedPayload\(html, input\.maxResults - saved, seen\)/);
+    assert.match(main, /productPrefixResponses/);
     assert.doesNotMatch(dockerfile, /omit=optional/);
 });
